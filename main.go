@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/chenasraf/vstask/runner"
@@ -24,7 +25,7 @@ func main() {
 			return t.Label == args[0]
 		})
 		if !found {
-			panic(errors.New("task not found: " + args[0]))
+			panic(errors.New("Task not found: " + args[0]))
 		}
 		runner.RunTask(task)
 		os.Exit(0)
@@ -32,6 +33,10 @@ func main() {
 	selected, err := tasks.PromptForTask()
 	if err != nil {
 		panic(err)
+	}
+	if selected.IsEmpty() {
+		fmt.Println("No task selected.")
+		os.Exit(1)
 	}
 	runner.RunTask(selected)
 }

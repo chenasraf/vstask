@@ -29,19 +29,18 @@ type Task struct {
 	RunOptions   *RunOptions   `json:"runOptions,omitempty"`
 
 	// Dependencies & grouping
-	DependsOn    json.RawMessage `json:"dependsOn,omitempty"`    // string | string[] | { tasks: string[] } via extension
-	DependsOrder string          `json:"dependsOrder,omitempty"` // "sequence" | "parallel"
-	Group        *Group          `json:"group,omitempty"`        // "build" | "test" | { "kind": "...", "isDefault": bool }
+	DependsOn    *DependsOn `json:"dependsOn,omitempty"`    // string | string[] | { tasks: string[] }
+	DependsOrder string     `json:"dependsOrder,omitempty"` // "sequence" | "parallel"
+	Group        *Group     `json:"group,omitempty"`        // "build" | "test" | { "kind": "...", "isDefault": bool }
 
 	// Problem matchers (string | string[] | object | object[])
-	ProblemMatcher json.RawMessage `json:"problemMatcher,omitempty"`
+	ProblemMatcher *ProblemMatcher `json:"problemMatcher,omitempty"`
 
 	// Misc
 	Detail string `json:"detail,omitempty"` // shown in the UI
 }
 
 // PlatformTask lets you override per-OS parts of the task.
-// VS Code allows most of the same fields as the base task here.
 type PlatformTask struct {
 	Command      string        `json:"command,omitempty"`
 	Args         []string      `json:"args,omitempty"`
@@ -75,15 +74,15 @@ type Presentation struct {
 	// "RevealProblems": "onProblem"|"onProblemDependingOnSeverity" may exist in newer versions
 }
 
-// Group can be a simple string ("build"/"test") or an object.
+// -------------------------
+// Group (string | object)
+// -------------------------
+
 type Group struct {
-	// If Kind is empty but you need simple groups, you can instead store "build" or "test"
-	// directly in JSON by using Raw below.
 	Kind      string `json:"kind,omitempty"`      // e.g. "build", "test"
 	IsDefault bool   `json:"isDefault,omitempty"` // marks default task for the group
 }
 
-// UnmarshalJSON supports both the string and object forms.
 func (g *Group) UnmarshalJSON(b []byte) error {
 	// Try simple string: "build"
 	var s string
@@ -91,7 +90,6 @@ func (g *Group) UnmarshalJSON(b []byte) error {
 		*g = Group{Kind: s}
 		return nil
 	}
-
 	// Try object: { "kind": "...", "isDefault": true }
 	type alias Group
 	var obj alias
@@ -99,11 +97,9 @@ func (g *Group) UnmarshalJSON(b []byte) error {
 		*g = Group(obj)
 		return nil
 	}
-
 	return fmt.Errorf("group: invalid value %s", string(b))
 }
 
-// Optional: Marshal as string when IsDefault is false, otherwise as object.
 func (g Group) MarshalJSON() ([]byte, error) {
 	if !g.IsDefault {
 		return json.Marshal(g.Kind)
@@ -112,9 +108,134 @@ func (g Group) MarshalJSON() ([]byte, error) {
 	return json.Marshal(alias(g))
 }
 
-// RunOptions adds scheduling behavior (VS Code 1.59+).
+// -----------------------------------------
+// DependsOn (string | string[] | {tasks})
+// -----------------------------------------
+
+type DependsOn struct {
+	Tasks []string
+}
+
+func (d *DependsOn) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		*d = DependsOn{}
+		return nil
+	}
+	// string
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		if s != "" {
+			d.Tasks = []string{s}
+		}
+		return nil
+	}
+	// []string
+	var ss []string
+	if err := json.Unmarshal(b, &ss); err == nil {
+		d.Tasks = ss
+		return nil
+	}
+	// { "tasks": []string }
+	var obj struct {
+		Tasks []string `json:"tasks"`
+	}
+	if err := json.Unmarshal(b, &obj); err == nil && obj.Tasks != nil {
+		d.Tasks = obj.Tasks
+		return nil
+	}
+	return fmt.Errorf("dependsOn: invalid value %s", string(b))
+}
+
+func (d DependsOn) MarshalJSON() ([]byte, error) {
+	switch len(d.Tasks) {
+	case 0:
+		return []byte("null"), nil
+	case 1:
+		return json.Marshal(d.Tasks[0])
+	default:
+		return json.Marshal(d.Tasks)
+	}
+}
+
+// -------------------------------------------------------
+// ProblemMatcher (string | string[] | object | object[])
+// -------------------------------------------------------
+
+// ProblemMatcher holds one or more problem matcher entries, each preserved as raw JSON.
+// Use .Strings() to extract only string matchers, or .Objects() to get raw object entries.
+type ProblemMatcher struct {
+	Elems []json.RawMessage
+}
+
+func (pm *ProblemMatcher) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		*pm = ProblemMatcher{}
+		return nil
+	}
+
+	// Try as array (strings or objects)
+	var arr []json.RawMessage
+	if err := json.Unmarshal(b, &arr); err == nil {
+		pm.Elems = arr
+		return nil
+	}
+
+	// Single string or single object
+	var one json.RawMessage
+	if err := json.Unmarshal(b, &one); err == nil {
+		pm.Elems = []json.RawMessage{one}
+		return nil
+	}
+
+	return fmt.Errorf("problemMatcher: invalid value %s", string(b))
+}
+
+func (pm ProblemMatcher) MarshalJSON() ([]byte, error) {
+	switch len(pm.Elems) {
+	case 0:
+		return []byte("null"), nil
+	case 1:
+		return json.Marshal(pm.Elems[0])
+	default:
+		return json.Marshal(pm.Elems)
+	}
+}
+
+// Convenience helpers (optional)
+func (pm ProblemMatcher) Strings() []string {
+	out := make([]string, 0, len(pm.Elems))
+	for _, e := range pm.Elems {
+		var s string
+		if err := json.Unmarshal(e, &s); err == nil {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Raw objects (matcher objects) as raw JSON blobs
+func (pm ProblemMatcher) Objects() []json.RawMessage {
+	out := make([]json.RawMessage, 0, len(pm.Elems))
+	for _, e := range pm.Elems {
+		// keep only non-strings (heuristic)
+		var s string
+		if err := json.Unmarshal(e, &s); err != nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ------------------------
+// RunOptions (plain JSON)
+// ------------------------
+
 type RunOptions struct {
 	RunOn           string `json:"runOn,omitempty"`           // "default" | "folderOpen"
 	ReevaluateOnRun bool   `json:"reevaluateOnRun,omitempty"` // true: re-resolve variables each run
 	InstanceLimit   int    `json:"instanceLimit,omitempty"`   // max parallel instances
+}
+
+func (t Task) IsEmpty() bool {
+	return t.Label == "" && t.Command == ""
 }

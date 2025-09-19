@@ -30,7 +30,7 @@ func PromptForTask() (Task, error) {
 				clrs := json.DefaultColors()
 				enc.SetColors(clrs)
 			}
-			// data, err := json.MarshalIndent(taskList[i], "", "  ")
+
 			enc.SetIndent("", "  ")
 			err := enc.Encode(taskList[i])
 			if err != nil {
@@ -40,6 +40,9 @@ func PromptForTask() (Task, error) {
 		}))
 
 	if err != nil {
+		if err == fuzzyfinder.ErrAbort {
+			return Task{}, nil
+		}
 		return Task{}, err
 	}
 
