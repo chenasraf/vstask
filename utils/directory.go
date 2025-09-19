@@ -46,7 +46,6 @@ func FileExists(p string) bool {
 	info, err := os.Stat(p)
 	if err != nil {
 		return false
-		// return !errors.Is(err, fs.ErrNotExist)
 	}
 	return info.Mode().IsRegular()
 }
@@ -56,14 +55,6 @@ func DirExists(p string) bool {
 	info, err := os.Stat(p)
 	if err != nil {
 		return false
-		// return !errors.Is(err, fs.ErrNotExist)
 	}
 	return info.IsDir()
-}
-
-// PathExists reports whether any filesystem object exists at path (file, dir, symlink target, etc.).
-func PathExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
-	// return err == nil || !errors.Is(err, fs.ErrNotExist)
 }
