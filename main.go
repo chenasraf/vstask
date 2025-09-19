@@ -1,19 +1,30 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/chenasraf/vstask/runner"
 	"github.com/chenasraf/vstask/tasks"
+	"github.com/chenasraf/vstask/utils"
 	"github.com/samber/lo"
 )
 
+//go:embed version.txt
+var appVersion []byte // appVersion is embedded from version.txt and contains the application version.
+
 func main() {
+	utils.SetVersion(strings.TrimSpace(string(appVersion)))
 	args := os.Args[1:]
 	if len(args) > 0 {
-		if args[0] == "--help" || args[0] == "-h" {
-			// PrintHelp()
+		switch args[0] {
+		case "--help", "-h":
+			utils.PrintHelp()
+			os.Exit(0)
+		case "-v", "--version":
+			utils.PrintVersion()
 			os.Exit(0)
 		}
 		taskList, err := tasks.GetTasks()
