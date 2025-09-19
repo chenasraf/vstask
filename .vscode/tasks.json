@@ -1,0 +1,190 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "username",
+      "type": "promptString",
+      "description": "Your display name",
+      "default": "Chen"
+    },
+    {
+      "id": "secret",
+      "type": "promptString",
+      "description": "Enter a secret (masked)",
+      "password": true
+    },
+    {
+      "id": "env",
+      "type": "pickString",
+      "description": "Select environment",
+      "options": [
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "default": "dev"
+    },
+    {
+      "id": "branch",
+      "type": "command",
+      "description": "Current git branch (auto-detected)",
+      "command": "git rev-parse --abbrev-ref HEAD",
+      "default": "main"
+    },
+    {
+      "id": "workdir",
+      "type": "promptString",
+      "description": "Relative working directory",
+      "default": "."
+    }
+  ],
+  "tasks": [
+    {
+      "label": "PM: help",
+      "type": "npm",
+      "command": "help",
+      "problemMatcher": []
+    },
+    {
+      "label": "PM: config list",
+      "type": "npm",
+      "command": "config",
+      "args": [
+        "list"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Shell: sanity check",
+      "type": "shell",
+      "command": "echo '✅ tasks.json is wired up'",
+      "problemMatcher": []
+    },
+    {
+      "label": "Shell: interactive input",
+      "type": "shell",
+      "options": {
+        "shell": {
+          "executable": "/bin/bash"
+        }
+      },
+      "command": "bash -c 'read -p \"Enter your name: \" name; echo \"Hello, $name!\"'",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "echo": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Shell: interactive input (bash)",
+      "type": "process",
+      "command": "/bin/bash",
+      "args": [
+        "-lc",
+        "printf 'Enter your name: '; IFS= read -r name; printf 'Hello, %s!\\n' \"$name\""
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "echo": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "01 Inputs: Prompt Name",
+      "type": "shell",
+      "options": {
+        "cwd": "${input:workdir}"
+      },
+      "command": "echo",
+      "args": [
+        "Hello, ${input:username} (from ${workspaceFolderBasename})"
+      ]
+    },
+    {
+      "label": "02 Inputs: Pick Env",
+      "type": "shell",
+      "options": {
+        "cwd": "${input:workdir}",
+        "env": {
+          "APP_ENV": "${input:env}"
+        }
+      },
+      "command": "sh",
+      "args": [
+        "-lc",
+        "echo Selected env is \"$APP_ENV\"; echo CWD=$(pwd)"
+      ]
+    },
+    {
+      "label": "03 Inputs: Command Branch",
+      "type": "shell",
+      "options": {
+        "cwd": "${input:workdir}"
+      },
+      "command": "echo",
+      "args": [
+        "Detected branch: ${input:branch}"
+      ]
+    },
+    {
+      "label": "04 Inputs: Secret (masked echo count)",
+      "type": "shell",
+      "command": "sh",
+      "args": [
+        "-lc",
+        "printf 'Secret length: %s\\n' ${#SECRET}",
+        "${input:secret}"
+      ],
+      "options": {
+        "cwd": "${input:workdir}",
+        "env": {
+          "SECRET": "${input:secret}"
+        }
+      }
+    },
+    {
+      "label": "Run: Demo (sequence)",
+      "type": "shell",
+      "dependsOn": {
+        "tasks": [
+          "01 Inputs: Prompt Name",
+          "02 Inputs: Pick Env",
+          "03 Inputs: Command Branch",
+          "04 Inputs: Secret (masked echo count)"
+        ]
+      },
+      "dependsOrder": "sequence",
+      "command": "sh",
+      "args": [
+        "-lc",
+        "echo 'All inputs resolved. Username=${input:username}, Env=${input:env}, Branch=${input:branch}'; echo Done."
+      ],
+      "options": {
+        "cwd": "${input:workdir}"
+      }
+    },
+    {
+      "label": "Run: Demo (parallel)",
+      "type": "shell",
+      "dependsOn": {
+        "tasks": [
+          "01 Inputs: Prompt Name",
+          "02 Inputs: Pick Env",
+          "03 Inputs: Command Branch"
+        ]
+      },
+      "command": "sh",
+      "args": [
+        "-lc",
+        "echo 'Parallel deps done → ${input:username}@${input:env} on ${input:branch}'"
+      ],
+      "options": {
+        "cwd": "${input:workdir}"
+      }
+    }
+  ]
+}

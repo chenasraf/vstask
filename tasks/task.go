@@ -7,9 +7,43 @@ import (
 
 // File is the root of .vscode/tasks.json
 type File struct {
-	Version string `json:"version,omitempty"`
-	Tasks   []Task `json:"tasks,omitempty"`
-	Inputs  []any  `json:"inputs,omitempty"` // keep flexible; inputs can vary
+	Version string  `json:"version,omitempty"`
+	Tasks   []Task  `json:"tasks,omitempty"`
+	Inputs  []Input `json:"inputs,omitempty"` // VS Code "inputs" array
+}
+
+// -------------------------
+// Input (VS Code "inputs")
+// -------------------------
+//
+// Matches VS Code's input types:
+// - promptString: { "id", "type":"promptString", "description"?, "default"?, "password"? }
+// - pickString:   { "id", "type":"pickString",  "description"?, "options":[...], "default"? }
+// - command:      { "id", "type":"command",     "command":"...", "args"?: any, "description"?, "default"? }
+//
+// Note: We keep a superset struct; unused fields simply stay zero.
+type Input struct {
+	ID          string   `json:"id,omitempty"`
+	Type        string   `json:"type,omitempty"`        // "promptString" | "pickString" | "command"
+	Description string   `json:"description,omitempty"` // shown to the user
+	Default     string   `json:"default,omitempty"`     // default value if user just presses Enter
+	Password    bool     `json:"password,omitempty"`    // promptString only
+	Options     []string `json:"options,omitempty"`     // pickString only
+
+	// Command input
+	Command string          `json:"command,omitempty"` // command to run; we use its stdout as value
+	Args    json.RawMessage `json:"args,omitempty"`    // optional args payload (not used by runner yet)
+}
+
+// DescriptionOrFallback returns a non-empty label for prompting.
+func (in *Input) DescriptionOrFallback() string {
+	if d := in.Description; d != "" {
+		return d
+	}
+	if in.ID != "" {
+		return "Select " + in.ID
+	}
+	return "Select an option"
 }
 
 // Task represents a single VS Code task (2.0.0 schema).

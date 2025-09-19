@@ -237,7 +237,8 @@ func TestRunSingleTaskWithDeps_Sequence(t *testing.T) {
 
 	// Build index and run
 	index := map[string]tasks.Task{"dep1": dep1, "dep2": dep2}
-	if err := runSingleTaskWithDeps(mainT, index, workspace); err != nil {
+	resolver := NewInputResolver(nil)
+	if err := runSingleTaskWithDeps(mainT, index, workspace, resolver); err != nil {
 		t.Fatalf("sequence deps failed: %v", err)
 	}
 }
@@ -261,7 +262,8 @@ func TestRunSingleTaskWithDeps_Parallel(t *testing.T) {
 	}
 
 	index := map[string]tasks.Task{"dep1": dep1, "dep2": dep2}
-	if err := runSingleTaskWithDeps(mainT, index, workspace); err != nil {
+	resolver := NewInputResolver(nil)
+	if err := runSingleTaskWithDeps(mainT, index, workspace, resolver); err != nil {
 		t.Fatalf("parallel deps failed: %v", err)
 	}
 }

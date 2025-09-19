@@ -14,6 +14,7 @@ import (
 	"github.com/chenasraf/vstask/utils"
 )
 
+// RunTask executes a task, resolving its dependsOn (sequence/parallel) and prompting for ${input:*}.
 func RunTask(task tasks.Task) error {
 	// Load all tasks so we can resolve dependsOn by label.
 	all, err := tasks.GetTasks()
@@ -21,6 +22,13 @@ func RunTask(task tasks.Task) error {
 		return err
 	}
 	index := indexByLabel(all)
+
+	// Load inputs (best effort; if not present we'll fallback to generic prompting).
+	var inputs []tasks.Input
+	if gi, err := tasks.GetInputs(); err == nil && gi != nil {
+		inputs = gi
+	}
+	resolver := NewInputResolver(inputs)
 
 	// Figure out workspace folder for substitutions.
 	root, err := utils.FindProjectRoot()
@@ -37,7 +45,7 @@ func RunTask(task tasks.Task) error {
 				if !ok {
 					return fmt.Errorf("dependsOn: task %q not found", lbl)
 				}
-				if err := runSingleTaskWithDeps(dep, index, root); err != nil {
+				if err := runSingleTaskWithDeps(dep, index, root, resolver); err != nil {
 					return fmt.Errorf("dependency %q failed: %w", lbl, err)
 				}
 			}
@@ -53,7 +61,7 @@ func RunTask(task tasks.Task) error {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					if err := runSingleTaskWithDeps(dep, index, root); err != nil {
+					if err := runSingleTaskWithDeps(dep, index, root, resolver); err != nil {
 						errCh <- fmt.Errorf("dependency %q failed: %w", depLbl, err)
 					}
 				}()
@@ -69,19 +77,23 @@ func RunTask(task tasks.Task) error {
 	}
 
 	// Now run the main task.
-	return runSingleTask(task, root)
+	return runSingleTask(task, root, resolver)
 }
 
-func runSingleTask(t tasks.Task, workspace string) error {
+func runSingleTask(t tasks.Task, workspace string, resolver *InputResolver) error {
 	eff := applyPlatformOverrides(t)
+
+	// ---- Prompt for all inputs referenced by this effective task BEFORE doing anything else ----
+	promptInputsForTask(eff, resolver)
 
 	// Prelim vars (process cwd)
 	preVars := buildVSCodeVarMapWithCWD(workspace, mustGetwd())
 
-	// Resolve the task's effective cwd
+	// Resolve the task's effective cwd (support ${input:*} + ${vscodeVar})
 	cwd := workspace
 	if eff.Options != nil && eff.Options.Cwd != "" {
-		cwdr := substituteVars(eff.Options.Cwd, preVars)
+		cwdr := replaceInputs(eff.Options.Cwd, resolver)
+		cwdr = substituteVars(cwdr, preVars)
 		if filepath.IsAbs(cwdr) {
 			cwd = cwdr
 		} else {
@@ -92,9 +104,12 @@ func runSingleTask(t tasks.Task, workspace string) error {
 	// Final vars with the effective cwd
 	vars := buildVSCodeVarMapWithCWD(workspace, cwd)
 
-	// Substitute ${...} in command/args using the final vars
+	// Substitute inputs then vscode vars in command/args
+	eff.Command = replaceInputs(eff.Command, resolver)
 	eff.Command = substituteVars(eff.Command, vars)
+
 	for i := range eff.Args {
+		eff.Args[i] = replaceInputs(eff.Args[i], resolver)
 		eff.Args[i] = substituteVars(eff.Args[i], vars)
 	}
 
@@ -103,7 +118,9 @@ func runSingleTask(t tasks.Task, workspace string) error {
 	if eff.Options != nil && len(eff.Options.Env) > 0 {
 		merged := make(map[string]string, len(eff.Options.Env))
 		for k, v := range eff.Options.Env {
-			merged[k] = substituteVars(v, vars)
+			val := replaceInputs(v, resolver)
+			val = substituteVars(val, vars)
+			merged[k] = val
 		}
 		env = mergeEnv(env, merged)
 	}
@@ -139,7 +156,7 @@ func runSingleTask(t tasks.Task, workspace string) error {
 	return err
 }
 
-func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root string) error {
+func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root string, resolver *InputResolver) error {
 	// Avoid infinite recursion if someone misconfigured cyclic deps.
 	seen := map[string]bool{}
 	var run func(tasks.Task) error
@@ -148,6 +165,10 @@ func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root strin
 			return fmt.Errorf("cycle detected at %q", tt.Label)
 		}
 		seen[tt.Label] = true
+
+		// Prompt inputs early for this node in the graph
+		promptInputsForTask(applyPlatformOverrides(tt), resolver)
+
 		if tt.DependsOn != nil && len(tt.DependsOn.Tasks) > 0 {
 			switch strings.ToLower(tt.DependsOrder) {
 			case "sequence":
@@ -185,7 +206,7 @@ func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root strin
 				}
 			}
 		}
-		return runSingleTask(tt, root)
+		return runSingleTask(tt, root, resolver)
 	}
 	return run(t)
 }
