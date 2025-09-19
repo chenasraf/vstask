@@ -20,6 +20,7 @@ type Task struct {
 
 	// Command & args
 	Command      string        `json:"command,omitempty"`
+	Script       string        `json:"script,omitempty"`
 	Args         []string      `json:"args,omitempty"`
 	Windows      *PlatformTask `json:"windows,omitempty"`
 	Osx          *PlatformTask `json:"osx,omitempty"`

@@ -1,3 +1,5 @@
+all: run
+
 .PHONY: build
 build:
 	go build

@@ -1,8 +1,6 @@
 package runner
 
 import (
-	"errors"
-	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -99,47 +97,6 @@ func mergeEnv(base []string, extra map[string]string) []string {
 		out = append(out, k+"="+v)
 	}
 	return out
-}
-
-func buildCmd(t tasks.Task, cwd string, env []string) (*exec.Cmd, func(), error) {
-	cleanup := func() {}
-	typ := strings.ToLower(strings.TrimSpace(t.Type))
-	if typ == "" {
-		typ = "shell" // VS Code default
-	}
-
-	switch typ {
-	case "process":
-		if t.Command == "" {
-			return nil, cleanup, errors.New("process task has empty command")
-		}
-		cmd := exec.Command(t.Command, t.Args...)
-		cmd.Dir = cwd
-		cmd.Env = env
-		return cmd, cleanup, nil
-
-	case "shell":
-		shExe, shArgs := defaultShell()
-		if t.Options != nil && t.Options.Shell != nil && t.Options.Shell.Executable != "" {
-			shExe = t.Options.Shell.Executable
-			if len(t.Options.Shell.Args) > 0 {
-				shArgs = append([]string(nil), t.Options.Shell.Args...)
-			}
-		}
-
-		// Build a single command line for the shell.
-		line := buildCommandLine(t.Command, t.Args)
-		args := append([]string{}, shArgs...)
-		args = append(args, line)
-
-		cmd := exec.Command(shExe, args...)
-		cmd.Dir = cwd
-		cmd.Env = env
-		return cmd, cleanup, nil
-
-	default:
-		return nil, cleanup, fmt.Errorf("unsupported task type: %q", t.Type)
-	}
 }
 
 func defaultShell() (exe string, args []string) {
