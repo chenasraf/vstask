@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/chenasraf/vstask/tasks"
 	"github.com/chenasraf/vstask/utils"
@@ -74,6 +72,73 @@ func RunTask(task tasks.Task) error {
 	return runSingleTask(task, root)
 }
 
+func runSingleTask(t tasks.Task, workspace string) error {
+	eff := applyPlatformOverrides(t)
+
+	// Prelim vars (process cwd)
+	preVars := buildVSCodeVarMapWithCWD(workspace, mustGetwd())
+
+	// Resolve the task's effective cwd
+	cwd := workspace
+	if eff.Options != nil && eff.Options.Cwd != "" {
+		cwdr := substituteVars(eff.Options.Cwd, preVars)
+		if filepath.IsAbs(cwdr) {
+			cwd = cwdr
+		} else {
+			cwd = filepath.Join(workspace, cwdr)
+		}
+	}
+
+	// Final vars with the effective cwd
+	vars := buildVSCodeVarMapWithCWD(workspace, cwd)
+
+	// Substitute ${...} in command/args using the final vars
+	eff.Command = substituteVars(eff.Command, vars)
+	for i := range eff.Args {
+		eff.Args[i] = substituteVars(eff.Args[i], vars)
+	}
+
+	// Environment
+	env := os.Environ()
+	if eff.Options != nil && len(eff.Options.Env) > 0 {
+		merged := make(map[string]string, len(eff.Options.Env))
+		for k, v := range eff.Options.Env {
+			merged[k] = substituteVars(v, vars)
+		}
+		env = mergeEnv(env, merged)
+	}
+
+	cmd, cleanup, err := buildCmd(eff, cwd, env)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	// Make a context that cancels on SIGINT/SIGTERM.
+	ctx, stop := signal.NotifyContext(context.Background(), trapSignals()...)
+	defer stop()
+
+	// Separate process group (Unix) so we can kill children too.
+	if runtime.GOOS != "windows" {
+		setProcessGroup(cmd)
+	}
+
+	fmt.Printf("Running task: %s\n", t.Label)
+
+	// Try interactive (PTY) first if possible; else stdio.
+	err = startAndWait(ctx, cmd, true)
+	if err == nil {
+		return nil
+	}
+	// If bash was blocked, retry with /bin/sh
+	if shouldFallbackToSh(cmd, err) {
+		if shCmd := rebuildWithSh(cmd); shCmd != nil {
+			return startAndWait(ctx, shCmd, true)
+		}
+	}
+	return err
+}
+
 func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root string) error {
 	// Avoid infinite recursion if someone misconfigured cyclic deps.
 	seen := map[string]bool{}
@@ -123,87 +188,4 @@ func runSingleTaskWithDeps(t tasks.Task, index map[string]tasks.Task, root strin
 		return runSingleTask(tt, root)
 	}
 	return run(t)
-}
-
-func runSingleTask(t tasks.Task, workspace string) error {
-	eff := applyPlatformOverrides(t)
-
-	// Prelim vars (process cwd)
-	preVars := buildVSCodeVarMapWithCWD(workspace, mustGetwd())
-
-	// Resolve the task's effective cwd
-	cwd := workspace
-	if eff.Options != nil && eff.Options.Cwd != "" {
-		cwdr := substituteVars(eff.Options.Cwd, preVars)
-		if filepath.IsAbs(cwdr) {
-			cwd = cwdr
-		} else {
-			cwd = filepath.Join(workspace, cwdr)
-		}
-	}
-
-	// Final vars with the effective cwd
-	vars := buildVSCodeVarMapWithCWD(workspace, cwd)
-
-	// Substitute ${...} in command/args using the final vars
-	eff.Command = substituteVars(eff.Command, vars)
-	for i := range eff.Args {
-		eff.Args[i] = substituteVars(eff.Args[i], vars)
-	}
-
-	// Environment
-	env := os.Environ()
-	if eff.Options != nil && len(eff.Options.Env) > 0 {
-		merged := make(map[string]string, len(eff.Options.Env))
-		for k, v := range eff.Options.Env {
-			merged[k] = substituteVars(v, vars)
-		}
-		env = mergeEnv(env, merged)
-	}
-
-	// Build exec.Cmd depending on task type (shell/process).
-	cmd, cleanup, err := buildCmd(eff, cwd, env)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	// Wire stdio for interactive tasks.
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Make a context that cancels on SIGINT/SIGTERM.
-	ctx, stop := signal.NotifyContext(context.Background(), trapSignals()...)
-	defer stop()
-
-	// Separate process group (Unix) so we can kill children too.
-	if runtime.GOOS != "windows" {
-		setProcessGroup(cmd)
-	}
-
-	// Start
-	fmt.Printf("Running task: %s\n", t.Label)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	// Wait in a goroutine so we can cancel.
-	waitErr := make(chan error, 1)
-	go func() { waitErr <- cmd.Wait() }()
-
-	select {
-	case <-ctx.Done():
-		// Signal received; kill process tree.
-		killTree(cmd.Process)
-		// Give it a moment to die gracefully.
-		select {
-		case err := <-waitErr:
-			return err
-		case <-time.After(2 * time.Second):
-			return errors.New("killed")
-		}
-	case err := <-waitErr:
-		return err
-	}
 }

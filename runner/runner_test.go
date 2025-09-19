@@ -127,13 +127,7 @@ func TestBuildCmd_Shell_DefaultKeepsDashC(t *testing.T) {
 		t.Fatalf("buildCmd err: %v", err)
 	}
 	argv := cmd.Args
-	hasDashC := false
-	for _, a := range argv {
-		if a == "-c" {
-			hasDashC = true
-			break
-		}
-	}
+	hasDashC := slices.Contains(argv, "-c")
 	if !hasDashC {
 		t.Fatalf("expected -c in shell args, got %v", argv)
 	}
