@@ -110,8 +110,6 @@ Place a `tasks.json` under `.vscode/` in your repo. Example:
 
 ### Run a task (CLI)
 
-> If your CLI exposes `run` and `list` commands; adjust if your binary uses a different interface.
-
 ```bash
 # list tasks and select from the list
 vstask
