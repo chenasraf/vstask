@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/chenasraf/vstask/tasks"
@@ -175,12 +174,12 @@ func runSingleTask(t tasks.Task, workspace string) error {
 	cmd.Stderr = os.Stderr
 
 	// Make a context that cancels on SIGINT/SIGTERM.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), trapSignals()...)
 	defer stop()
 
 	// Separate process group (Unix) so we can kill children too.
 	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		setProcessGroup(cmd)
 	}
 
 	// Start

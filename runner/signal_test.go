@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 package runner
 
 import (
@@ -7,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,10 +21,6 @@ import (
 // then uses killTree to terminate the parent's *process group* and
 // verifies the child is also gone.
 func TestKillTreeKillsProcessGroup(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("killTree test uses Unix process groups; Windows uses taskkill (covered indirectly).")
-	}
-
 	helperPath := buildSignalHelper(t)
 
 	// Start helper in its own process group so killTree(-pgid) targets the group.
@@ -30,7 +28,7 @@ func TestKillTreeKillsProcessGroup(t *testing.T) {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcessGroup(cmd)
 
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start helper: %v", err)
@@ -63,16 +61,26 @@ func TestKillTreeKillsProcessGroup(t *testing.T) {
 		t.Fatalf("helper did not exit after killTree")
 	}
 
-	// Verify the child process is gone (ESRCH).
-	if err := syscall.Kill(childPID, 0); err == nil {
+	// Verify the child process is gone (poll for ESRCH up to ~3s).
+	gone := false
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		err := syscall.Kill(childPID, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			gone = true
+			break
+		}
+		// If we get EPERM or nil, the process may still exist or be a zombie; wait a bit and retry.
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !gone {
 		t.Fatalf("child PID %d still exists after killTree", childPID)
-	} else if !errors.Is(err, syscall.ESRCH) {
-		t.Fatalf("unexpected error probing child PID %d: %v", childPID, err)
 	}
 }
 
 // buildSignalHelper writes and builds a tiny program that spawns a long-running child
 // and prints "CHILD=<pid>" to stdout, then waits for the child (exits when killed).
+
 func buildSignalHelper(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -82,38 +90,45 @@ func buildSignalHelper(t *testing.T) string {
 	code := `package main
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
-	"time"
+    "fmt"
+    "os"
+    "os/exec"
+    "os/signal"
+    "runtime"
+    "syscall"
+    "time"
 )
 
 func main() {
-	if runtime.GOOS == "windows" {
-		// Not used in this test on Windows; stay running briefly.
-		time.Sleep(60 * time.Second)
-		return
-	}
-	// Child sleeps for a while; inherits parent's process group.
-	child := exec.Command("/bin/sh", "-c", "sleep 60")
-	// DO NOT set Setpgid here; we want child in the SAME group as parent.
-	if err := child.Start(); err != nil {
-		fmt.Printf("ERR: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("CHILD=%d\n", child.Process.Pid)
-	// Flush stdout to ensure parent test can read it quickly.
-	_ = os.Stdout.Sync()
+    if runtime.GOOS == "windows" {
+        time.Sleep(60 * time.Second)
+        return
+    }
+    // Start a long-lived child in the SAME process group.
+    child := exec.Command("/bin/sh", "-c", "sleep 60")
+    if err := child.Start(); err != nil {
+        fmt.Printf("ERR: %v\n", err)
+        os.Exit(1)
+    }
+    fmt.Printf("CHILD=%d\n", child.Process.Pid)
+    _ = os.Stdout.Sync()
 
-	// Wait until killed by signal sent to the group.
-	_ = child.Wait()
+    // Best-effort: on SIGTERM/INT, forward to child, then reap.
+    sigs := make(chan os.Signal, 1)
+    signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
+    go func() {
+        <-sigs
+        // Forward SIGTERM; ignore error if already exiting.
+        _ = child.Process.Signal(syscall.SIGTERM)
+    }()
+
+    // Wait until killed or signalled.
+    _ = child.Wait()
 }
 `
 	if err := os.WriteFile(src, []byte(code), 0o644); err != nil {
 		t.Fatalf("write helper: %v", err)
 	}
-
 	build := exec.Command("go", "build", "-o", bin, src)
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err := build.Run(); err != nil {

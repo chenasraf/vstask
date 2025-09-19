@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/chenasraf/vstask/tasks"
 )
@@ -217,22 +215,6 @@ func winQuote(s string) string {
 		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 	}
 	return s
-}
-
-func killTree(p *os.Process) {
-	if p == nil {
-		return
-	}
-	if runtime.GOOS == "windows" {
-		// Best-effort kill process tree on Windows.
-		// Requires taskkill to be present (it is on standard Windows).
-		_ = exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", p.Pid)).Run()
-		return
-	}
-	// Unix: kill the whole process group.
-	_ = syscall.Kill(-p.Pid, syscall.SIGTERM)
-	// If still alive after a moment, SIGKILL.
-	time.AfterFunc(1*time.Second, func() { _ = syscall.Kill(-p.Pid, syscall.SIGKILL) })
 }
 
 func mustGetwd() string {
