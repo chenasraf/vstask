@@ -39,13 +39,13 @@ Grab the latest release for **Linux**, **macOS**, or **Windows**:
 
 ### Homebrew (macOS/Linux)
 
-Install from a custom tap:
+Install directly from the tap:
 
 ```bash
 brew install chenasraf/tap/vstask
 ```
 
-Or install the tap and then the package:
+Or tap and then install the package:
 
 ```bash
 brew tap chenasraf/tap
@@ -62,9 +62,11 @@ location.
   file (use at your own discretion):
 
   To change the install location, change the provided env variable `$INSTALL_DIR` to the script:
-bash curl -fsSL https://raw.githubusercontent.com/chenasraf/vstask/master/install.sh \ | env INSTALL_DIR="$HOME/.local/bin" bash -s --
 
-> If you already use your tap for other tools, `brew update` first.
+```bash
+curl -fsSL https://raw.githubusercontent.com/chenasraf/vstask/master/install.sh \
+  | env INSTALL_DIR="$HOME/.local/bin" bash -s --
+```
 
 ### From Source
 
