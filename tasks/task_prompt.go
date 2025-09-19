@@ -1,6 +1,12 @@
 package tasks
 
-import "github.com/ktr0731/go-fuzzyfinder"
+import (
+	"bytes"
+	"os"
+
+	"github.com/ktr0731/go-fuzzyfinder"
+	json "github.com/neilotoole/jsoncolor"
+)
 
 func PromptForTask() (Task, error) {
 	taskList, err := GetTasks()
@@ -17,7 +23,20 @@ func PromptForTask() (Task, error) {
 			if i == -1 {
 				return "No task selected"
 			}
-			return taskList[i].Detail
+			var buf bytes.Buffer
+			enc := json.NewEncoder(&buf)
+
+			if json.IsColorTerminal(os.Stdout) {
+				clrs := json.DefaultColors()
+				enc.SetColors(clrs)
+			}
+			// data, err := json.MarshalIndent(taskList[i], "", "  ")
+			enc.SetIndent("", "  ")
+			err := enc.Encode(taskList[i])
+			if err != nil {
+				return "Error displaying task details"
+			}
+			return buf.String()
 		}))
 
 	if err != nil {

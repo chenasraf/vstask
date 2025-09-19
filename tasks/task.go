@@ -1,6 +1,9 @@
 package tasks
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // File is the root of .vscode/tasks.json
 type File struct {
@@ -78,6 +81,35 @@ type Group struct {
 	// directly in JSON by using Raw below.
 	Kind      string `json:"kind,omitempty"`      // e.g. "build", "test"
 	IsDefault bool   `json:"isDefault,omitempty"` // marks default task for the group
+}
+
+// UnmarshalJSON supports both the string and object forms.
+func (g *Group) UnmarshalJSON(b []byte) error {
+	// Try simple string: "build"
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		*g = Group{Kind: s}
+		return nil
+	}
+
+	// Try object: { "kind": "...", "isDefault": true }
+	type alias Group
+	var obj alias
+	if err := json.Unmarshal(b, &obj); err == nil {
+		*g = Group(obj)
+		return nil
+	}
+
+	return fmt.Errorf("group: invalid value %s", string(b))
+}
+
+// Optional: Marshal as string when IsDefault is false, otherwise as object.
+func (g Group) MarshalJSON() ([]byte, error) {
+	if !g.IsDefault {
+		return json.Marshal(g.Kind)
+	}
+	type alias Group
+	return json.Marshal(alias(g))
 }
 
 // RunOptions adds scheduling behavior (VS Code 1.59+).

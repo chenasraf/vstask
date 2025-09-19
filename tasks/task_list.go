@@ -30,6 +30,8 @@ func LoadTasksFile(tasksPath string) ([]Task, error) {
 		return nil, err
 	}
 
+	data = utils.ConvertJsoncToJson(data)
+
 	var file struct {
 		Version string `json:"version"`
 		Tasks   []Task `json:"tasks"`
