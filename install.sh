@@ -1,10 +1,8 @@
 #!/usr/bin/env sh
-# Portable installer for sofmani (no Bashisms)
-# Env vars you can override: INSTALL_DIR, REPO
 
 set -eu
 
-REPO="${REPO:-chenasraf/sofmani}"
+REPO="${REPO:-chenasraf/vstask}"
 INSTALL_DIR="${INSTALL_DIR:-"$HOME/.local/bin"}"
 
 need() {
@@ -23,7 +21,7 @@ os="$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')"
 arch="$(uname -m 2>/dev/null)"
 case "$os" in
 linux) os="linux" ;;
-darwin) os="darwin" ;; # adjust if your asset names use "darwin" instead
+darwin) os="darwin" ;;
 *)
   echo "Unsupported OS: $os" >&2
   exit 1
@@ -39,7 +37,7 @@ aarch64 | arm64) arch="arm64" ;;
   ;;
 esac
 
-asset="sofmani-${os}-${arch}.tar.gz"
+asset="vstask-${os}-${arch}.tar.gz"
 
 download_url="https://github.com/${REPO}/releases/latest/download/${asset}"
 
@@ -48,7 +46,7 @@ tmpdir="$(mktemp -d)"
 cleanup() { [ -n "${tmpdir:-}" ] && rm -rf "$tmpdir"; }
 trap cleanup EXIT INT HUP TERM
 
-echo "Installing sofmani (latest) for ${os}/${arch}"
+echo "Installing vstask (latest) for ${os}/${arch}"
 mkdir -p "$INSTALL_DIR"
 
 echo "Downloading ${download_url} ..."
@@ -58,19 +56,19 @@ if ! curl -fsSL "$download_url" | tar -xzf - -C "$tmpdir"; then
   exit 1
 fi
 
-if [ ! -f "$tmpdir/sofmani" ]; then
-  echo "Extracted archive did not contain 'sofmani' binary" >&2
+if [ ! -f "$tmpdir/vstask" ]; then
+  echo "Extracted archive did not contain 'vstask' binary" >&2
   exit 1
 fi
 
 echo "Installing to ${INSTALL_DIR} ..."
 
-if ! install -m 0755 "$tmpdir/sofmani" "$INSTALL_DIR/sofmani"; then
-  echo "Failed to install sofmani to ${INSTALL_DIR}" >&2
+if ! install -m 0755 "$tmpdir/vstask" "$INSTALL_DIR/sofmani"; then
+  echo "Failed to install vstask to ${INSTALL_DIR}" >&2
   exit 1
 fi
 
-echo "sofmani installed successfully at ${INSTALL_DIR}/sofmani"
+echo "vstask installed successfully at ${INSTALL_DIR}/sofmani"
 
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) : ;; # already in PATH
