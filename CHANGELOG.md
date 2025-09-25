@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chenasraf/vstask/compare/v1.1.0...v1.1.1) (2025-09-25)
+
+
+### Bug Fixes
+
+* find correct project root dir ([826dfd2](https://github.com/chenasraf/vstask/commit/826dfd2b61ecd8f571d089cca21b381eaeea7846))
+
 ## [1.1.0](https://github.com/chenasraf/vstask/compare/v1.0.0...v1.1.0) (2025-09-19)
 
 
