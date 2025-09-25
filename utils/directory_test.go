@@ -103,7 +103,7 @@ func TestFindProjectRootFrom_FindsVSCodeDir(t *testing.T) {
 		t.Fatalf("mkdir child: %v", err)
 	}
 
-	// The implementation uses path.Join (POSIX) internally and returns "."
+	// The implementation uses path.Join (POSIX) internally and returns the root path of the project
 	// when it finds a .vscode somewhere above. It expects a POSIX-style path
 	// string. Forward slashes work on all OSes in Go, including Windows.
 	posixChild := toSlash(child)
@@ -112,9 +112,7 @@ func TestFindProjectRootFrom_FindsVSCodeDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindProjectRootFrom(%q) err: %v", posixChild, err)
 	}
-	if got != "." {
-		t.Fatalf("FindProjectRootFrom(%q) = %q, want %q", posixChild, got, ".")
-	}
+	requireSamePath(t, got, ws)
 }
 
 func TestFindProjectRootFrom_NoVSCodeDirError(t *testing.T) {
@@ -157,9 +155,7 @@ func TestFindProjectRoot_UsesCWD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindProjectRoot err: %v", err)
 	}
-	if got != "." {
-		t.Fatalf("FindProjectRoot = %q, want %q", got, ".")
-	}
+	requireSamePath(t, got, ws)
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -167,4 +163,22 @@ func TestFindProjectRoot_UsesCWD(t *testing.T) {
 func toSlash(p string) string {
 	// Convert to POSIX-style (matches utils' use of path.Join/Dir)
 	return strings.ReplaceAll(p, `\`, `/`)
+}
+
+func mustReal(t *testing.T, p string) string {
+	t.Helper()
+	r, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		// Fall back to a cleaned path if symlink resolution fails in CI
+		return filepath.Clean(p)
+	}
+	return r
+}
+
+func requireSamePath(t *testing.T, got, want string) {
+	t.Helper()
+	gr, wr := mustReal(t, got), mustReal(t, want)
+	if gr != wr {
+		t.Fatalf("paths differ:\n  got:  %q (real %q)\n  want: %q (real %q)", got, gr, want, wr)
+	}
 }

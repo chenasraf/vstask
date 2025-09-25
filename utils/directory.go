@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -25,7 +26,10 @@ func FindProjectRoot() (string, error) {
 func FindProjectRootFrom(p string) (string, error) {
 	vscodePath := path.Join(p, VSCODE_DIR)
 	if DirExists(vscodePath) {
-		return ".", nil
+		if real, err := filepath.EvalSymlinks(p); err == nil {
+			return real, nil
+		}
+		return p, nil
 	}
 	parent, err := getParentDir(p)
 	if err != nil {
