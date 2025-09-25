@@ -79,7 +79,7 @@ func applyPlatformOverrides(t tasks.Task) tasks.Task {
 
 // ----------------- Input resolution -----------------
 
-// Expectation for tasks.Input (align with your tasks package):
+// Expectation for tasks.Input:
 // type Input struct {
 //   ID          string   `json:"id"`
 //   Type        string   `json:"type"` // "promptString" | "pickString" | "command"
@@ -456,9 +456,8 @@ func mustGetwd() string {
 	return ""
 }
 
-// Same as buildVSCodeVarMap, but lets you override ${cwd} with the task's effective cwd.
+// Same as buildVSCodeVarMap, but allows overriding ${cwd} with the task's effective cwd.
 func buildVSCodeVarMapWithCWD(workspace, cwd string) map[string]string {
-	// Start with your existing builder
 	vars := buildVSCodeVarMap(workspace)
 	if cwd != "" {
 		vars["cwd"] = cwd

@@ -3,6 +3,8 @@ package tasks
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 )
 
 // File is the root of .vscode/tasks.json
@@ -62,6 +64,7 @@ type Task struct {
 	Options      *Options      `json:"options,omitempty"`
 	Presentation *Presentation `json:"presentation,omitempty"` // aka presentationOptions in older docs
 	RunOptions   *RunOptions   `json:"runOptions,omitempty"`
+	IsBackground bool          `json:"isBackground,omitempty"`
 
 	// Dependencies & grouping
 	DependsOn    *DependsOn `json:"dependsOn,omitempty"`    // string | string[] | { tasks: string[] }
@@ -75,7 +78,7 @@ type Task struct {
 	Detail string `json:"detail,omitempty"` // shown in the UI
 }
 
-// PlatformTask lets you override per-OS parts of the task.
+// PlatformTask allows overriding per-OS parts of the task.
 type PlatformTask struct {
 	Command      string        `json:"command,omitempty"`
 	Args         []string      `json:"args,omitempty"`
@@ -259,6 +262,81 @@ func (pm ProblemMatcher) Objects() []json.RawMessage {
 		}
 	}
 	return out
+}
+
+// ----- Typed object form for problem matchers -----
+
+type ProblemMatcherBackground struct {
+	ActiveOnStart bool   `json:"activeOnStart,omitempty"`
+	BeginsPattern string `json:"beginsPattern,omitempty"`
+	EndsPattern   string `json:"endsPattern,omitempty"`
+}
+
+type ProblemMatcherPattern struct {
+	// We don't need to model full pattern structure for readiness,
+	// but keep a placeholder so future extensions can unmarshal cleanly.
+	Regexp string `json:"regexp,omitempty"`
+}
+
+type ProblemMatcherObject struct {
+	Owner        string                    `json:"owner,omitempty"`
+	Source       string                    `json:"source,omitempty"`
+	FileLocation any                       `json:"fileLocation,omitempty"`
+	Pattern      any                       `json:"pattern,omitempty"`    // can be object or array; not used for readiness
+	Background   *ProblemMatcherBackground `json:"background,omitempty"` // what we need for readiness gating
+	Severity     string                    `json:"severity,omitempty"`
+}
+
+// FirstBackground returns the first background config found among object matchers,
+// or resolves a known string alias (e.g., "$tsc-watch") into a background config.
+// Returns nil if no usable background is present.
+func (pm ProblemMatcher) FirstBackground() *ProblemMatcherBackground {
+	// 1) Object matchers with background
+	for _, raw := range pm.Objects() {
+		var obj ProblemMatcherObject
+		if err := json.Unmarshal(raw, &obj); err == nil && obj.Background != nil {
+			bg := *obj.Background // copy to avoid aliasing
+			// Normalize empty strings to zero values
+			bg.BeginsPattern = strings.TrimSpace(bg.BeginsPattern)
+			bg.EndsPattern = strings.TrimSpace(bg.EndsPattern)
+			if bg.ActiveOnStart || bg.BeginsPattern != "" {
+				return &bg
+			}
+		}
+	}
+
+	// 2) String aliases → known backgrounds (minimal set; extend as needed)
+	for _, s := range pm.Strings() {
+		s = strings.TrimSpace(s)
+		if bg, ok := builtinBackgroundByAlias[s]; ok {
+			// return a copy to avoid external mutation
+			cp := bg
+			return &cp
+		}
+	}
+
+	return nil
+}
+
+// Minimal built-in alias → background mapping for readiness-only purposes.
+var builtinBackgroundByAlias = map[string]ProblemMatcherBackground{
+	// TypeScript watch: tsc -w
+	// Common lines seen:
+	// - "Starting compilation in watch mode..."
+	// - "Found 0 errors. Watching for file changes."
+	// - "Found X errors. Watching for file changes."
+	"$tsc-watch": {
+		ActiveOnStart: false,
+		BeginsPattern: `(?i)\bwatch(ing)? for file changes\b|^Starting compilation in watch mode`,
+		EndsPattern:   ``, // not required for readiness
+	},
+}
+
+// BgMatcher is used by the runner to hold compiled regexes.
+type BgMatcher struct {
+	ActiveOnStart bool
+	BeginsRx      *regexp.Regexp // optional
+	EndsRx        *regexp.Regexp // optional; useful for cycles/logging, not required for readiness
 }
 
 // ------------------------

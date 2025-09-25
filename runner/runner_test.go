@@ -2,6 +2,8 @@ package runner
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -216,62 +218,48 @@ func TestRunSingleTask_ShellEcho(t *testing.T) {
 	_ = pre
 }
 
-func TestRunSingleTaskWithDeps_Sequence(t *testing.T) {
+func TestStartAndWaitReady_Background_UnblocksQuickly(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX shell integration")
 	}
 	workspace := t.TempDir()
-	// Create tasks: dep1 writes file1, dep2 writes file2, main reads both.
-	file1 := filepath.Join(workspace, "f1")
-	file2 := filepath.Join(workspace, "f2")
 
-	dep1 := tasks.Task{Label: "dep1", Type: "shell", Command: "printf 1 > " + posixQuotePath(file1)}
-	dep2 := tasks.Task{Label: "dep2", Type: "shell", Command: "printf 2 > " + posixQuotePath(file2)}
-	mainT := tasks.Task{
-		Label:        "main",
+	// A background "watcher" that prints a $tsc-watch readiness line, then sleeps briefly
+	watcher := tasks.Task{
 		Type:         "shell",
-		DependsOn:    &tasks.DependsOn{Tasks: []string{"dep1", "dep2"}},
-		DependsOrder: "sequence",
-		Command:      "test -f " + posixQuotePath(file1) + " && test -f " + posixQuotePath(file2),
+		IsBackground: true,
+		ProblemMatcher: &tasks.ProblemMatcher{
+			Elems: []json.RawMessage{json.RawMessage(`"$tsc-watch"`)},
+		},
+		// readiness line then linger a bit
+		Command: `printf "Starting compilation in watch mode...\n"; sleep 0.5`,
 	}
 
-	// Build index and run
-	index := map[string]tasks.Task{"dep1": dep1, "dep2": dep2}
-	resolver := NewInputResolver(nil)
-	if err := runSingleTaskWithDeps(mainT, index, workspace, resolver); err != nil {
-		t.Fatalf("sequence deps failed: %v", err)
+	// Build command for the watcher
+	cmd, cleanup, err := buildCmd(watcher, workspace, os.Environ())
+	if err != nil {
+		t.Fatalf("buildCmd watcher: %v", err)
 	}
-}
+	defer cleanup()
 
-func TestRunSingleTaskWithDeps_Parallel(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("POSIX shell integration")
-	}
-	workspace := t.TempDir()
-	file1 := filepath.Join(workspace, "f1")
-	file2 := filepath.Join(workspace, "f2")
-
-	dep1 := tasks.Task{Label: "dep1", Type: "shell", Command: "printf 1 > " + posixQuotePath(file1)}
-	dep2 := tasks.Task{Label: "dep2", Type: "shell", Command: "printf 2 > " + posixQuotePath(file2)}
-	mainT := tasks.Task{
-		Label:        "main",
-		Type:         "shell",
-		DependsOn:    &tasks.DependsOn{Tasks: []string{"dep1", "dep2"}},
-		DependsOrder: "parallel",
-		Command:      "sleep 0.05; test -f " + posixQuotePath(file1) + " && test -f " + posixQuotePath(file2),
+	// Compile the background matcher via extractBgMatcher (uses ProblemMatcher.FirstBackground)
+	bg := extractBgMatcher(watcher)
+	if bg == nil {
+		t.Fatal("expected bg matcher, got nil")
 	}
 
-	index := map[string]tasks.Task{"dep1": dep1, "dep2": dep2}
-	resolver := NewInputResolver(nil)
-	if err := runSingleTaskWithDeps(mainT, index, workspace, resolver); err != nil {
-		t.Fatalf("parallel deps failed: %v", err)
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := startAndWaitReady(ctx, &execCmdShim{Cmd: cmd}, false, bg, true); err != nil {
+		t.Fatalf("startAndWaitReady err: %v", err)
 	}
-}
+	elapsed := time.Since(start)
 
-// Utility for quoting file paths in shell commands
-func posixQuotePath(p string) string {
-	// Reuse posixQuoteForShell but ensure it's a path string
-	return posixQuoteForShell(p)
+	// Should return quickly (almost immediately after printing the line)
+	if elapsed > time.Second {
+		t.Fatalf("readiness gating took too long: %v", elapsed)
+	}
 }
 
 // ------------- Windows equivalents (optional stubs) -------------

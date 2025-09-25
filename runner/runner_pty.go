@@ -56,7 +56,7 @@ func startAndWait(ctx context.Context, cmd *exec.Cmd, interactive bool) (retErr 
 	return retErr
 }
 
-// startAndWaitStdio runs the command with plain stdio and your cancel/kill logic.
+// startAndWaitStdio runs the command with plain stdio and cancel/kill logic.
 func startAndWaitStdio(ctx context.Context, cmd *exec.Cmd) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

@@ -210,7 +210,6 @@ func TestResolvePM_FromUserSettings(t *testing.T) {
 
 func TestIsNpmBuiltin(t *testing.T) {
 	// This test is in the same package, so we can reach unexported isNpmBuiltin if present.
-	// If you moved it, adjust imports accordingly.
 	tests := map[string]bool{
 		"install": true,
 		"ci":      true,
