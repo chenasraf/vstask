@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/chenasraf/vstask/compare/v1.1.1...v1.2.0) (2025-12-04)
+
+
+### Features
+
+* vs code bg readiness + tests ([0022b8c](https://github.com/chenasraf/vstask/commit/0022b8c06a6d99761e310c4419e0eb556e27f64c))
+
 ## [1.1.1](https://github.com/chenasraf/vstask/compare/v1.1.0...v1.1.1) (2025-09-25)
 
 
