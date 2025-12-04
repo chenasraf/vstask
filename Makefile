@@ -1,12 +1,19 @@
-all: run
+BIN := $(notdir $(CURDIR))
+
+all:
+	@if [ ! -f ".git/hooks/pre-commit" ]; then \
+		$(MAKE) precommit-install; \
+	fi
+	$(MAKE) build
+	$(MAKE) run
 
 .PHONY: build
 build:
-	go build
+	go build -o $(BIN)
 
 .PHONY: run
 run: build
-	./vstask
+	./$(BIN)
 
 .PHONY: test
 test:
@@ -14,11 +21,15 @@ test:
 
 .PHONY: install
 install: build
-	cp vstask ~/.local/bin
+	cp $(BIN) ~/.local/bin/
 
 .PHONY: uninstall
 uninstall:
-	rm -f ~/.local/bin/vstask
+	rm -f ~/.local/bin/$(BIN)
+
+.PHONY: lint
+lint:
+	golangci-lint run ./...
 
 .PHONY: precommit-install
 precommit-install:
@@ -33,9 +44,11 @@ precommit:
 	if [ -z "$$STAGED_FILES" ]; then \
 		echo "No staged Go files to check."; \
 	else \
+		set -e; \
 		echo "Running pre-commit checks..."; \
 		echo "go fmt"; \
 		go fmt ./...; \
+		git add $$STAGED_FILES; \
 		echo "go vet"; \
 		go vet ./...; \
 		echo "golangci-lint"; \
