@@ -206,6 +206,44 @@ func TestResolvePM_FromUserSettings(t *testing.T) {
 	}
 }
 
+// --- package.json packageManager field ---
+
+func TestResolvePM_FromPackageJSON(t *testing.T) {
+	isolatePMDetectionToDefault(t)
+
+	ws := t.TempDir()
+	// No .vscode/settings.json, but package.json has packageManager
+	writeFile(t, filepath.Join(ws, "package.json"), `{"packageManager":"pnpm@8.15.0"}`)
+
+	tk := tasks.Task{Type: "npm", Script: "build"}
+	cmd, _, err := buildCmd(tk, ws, os.Environ())
+	if err != nil {
+		t.Fatalf("buildCmd err: %v", err)
+	}
+	if got, want := filepath.Base(cmd.Args[0]), "pnpm"; got != want {
+		t.Fatalf("exe=%q, want %q (packageManager field)", got, want)
+	}
+}
+
+func TestResolvePM_SettingsOverridesPackageJSON(t *testing.T) {
+	isolatePMDetectionToDefault(t)
+
+	ws := t.TempDir()
+	// VS Code settings say yarn, but package.json says pnpm
+	writeFile(t, filepath.Join(ws, ".vscode", "settings.json"), `{"npm.packageManager":"yarn"}`)
+	writeFile(t, filepath.Join(ws, "package.json"), `{"packageManager":"pnpm@8.15.0"}`)
+
+	tk := tasks.Task{Type: "npm", Script: "build"}
+	cmd, _, err := buildCmd(tk, ws, os.Environ())
+	if err != nil {
+		t.Fatalf("buildCmd err: %v", err)
+	}
+	// VS Code settings should win
+	if got, want := filepath.Base(cmd.Args[0]), "yarn"; got != want {
+		t.Fatalf("exe=%q, want %q (settings should override packageManager)", got, want)
+	}
+}
+
 // --- builtin detector ---
 
 func TestIsNpmBuiltin(t *testing.T) {

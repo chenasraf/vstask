@@ -150,8 +150,36 @@ func normalizePM(v string) (string, bool) {
 	}
 }
 
+// detectPackageManagerFromPackageJSON reads the "packageManager" field from
+// package.json (the corepack standard, e.g. "pnpm@8.15.0") and returns the
+// executable name if recognized.
+func detectPackageManagerFromPackageJSON(cwd string) (string, bool) {
+	path := filepath.Join(cwd, "package.json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	var pkg struct {
+		PackageManager string `json:"packageManager"`
+	}
+	if err := json.Unmarshal(b, &pkg); err != nil {
+		return "", false
+	}
+	// The field value is "name@version", e.g. "pnpm@8.15.0" or just "pnpm".
+	name := strings.TrimSpace(pkg.PackageManager)
+	if i := strings.IndexByte(name, '@'); i > 0 {
+		name = name[:i]
+	}
+	return normalizePM(name)
+}
+
 func ResolvePackageManagerExecutable(cwd string, defaultExe string) string {
+	// 1) VS Code settings take highest priority (explicit user preference).
 	if exe, ok := detectPackageManagerFromSettings(cwd); ok {
+		return exe
+	}
+	// 2) package.json "packageManager" field (corepack standard).
+	if exe, ok := detectPackageManagerFromPackageJSON(cwd); ok {
 		return exe
 	}
 	if defaultExe == "" {
