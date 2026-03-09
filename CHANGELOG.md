@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/chenasraf/vstask/compare/v1.2.0...v1.3.0) (2026-03-09)
+
+
+### Features
+
+* add corepack packageManager field support ([9653074](https://github.com/chenasraf/vstask/commit/96530745b30b8348a4d7d29ec5eb0a006d86f859))
+
+
+### Bug Fixes
+
+* disable corepack strict mode ([27ba113](https://github.com/chenasraf/vstask/commit/27ba113e8ecaaa7987ffb0c13e88c467471b37fa))
+
 ## [1.2.0](https://github.com/chenasraf/vstask/compare/v1.1.1...v1.2.0) (2026-01-23)
 
 
