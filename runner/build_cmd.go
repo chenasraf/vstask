@@ -48,6 +48,11 @@ func buildCmd(t tasks.Task, cwd string, env []string) (*exec.Cmd, func(), error)
 	case "npm":
 		npmExe := tasks.ResolvePackageManagerExecutable(cwd, "npm")
 
+		// Disable corepack strict version enforcement so that a
+		// packageManager version mismatch doesn't block execution.
+		// VS Code doesn't go through corepack, so this keeps parity.
+		env = appendEnvIfMissing(env, "COREPACK_ENABLE_STRICT", "0")
+
 		// Support either:
 		// - Command/Script = npm subcommand or script name
 		// - Command empty with first arg being subcommand/script

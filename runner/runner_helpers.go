@@ -370,6 +370,17 @@ func mergeEnv(base []string, extra map[string]string) []string {
 	return out
 }
 
+// appendEnvIfMissing adds key=value to env only if key is not already set.
+func appendEnvIfMissing(env []string, key, value string) []string {
+	prefix := key + "="
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			return env
+		}
+	}
+	return append(env, prefix+value)
+}
+
 func defaultShell() (exe string, args []string) {
 	if runtime.GOOS == "windows" {
 		return "cmd.exe", []string{"/C"}
