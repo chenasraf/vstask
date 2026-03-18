@@ -63,12 +63,12 @@ fi
 
 echo "Installing to ${INSTALL_DIR} ..."
 
-if ! install -m 0755 "$tmpdir/vstask" "$INSTALL_DIR/sofmani"; then
+if ! install -m 0755 "$tmpdir/vstask" "$INSTALL_DIR/vstask"; then
   echo "Failed to install vstask to ${INSTALL_DIR}" >&2
   exit 1
 fi
 
-echo "vstask installed successfully at ${INSTALL_DIR}/sofmani"
+echo "vstask installed successfully at ${INSTALL_DIR}/vstask"
 
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) : ;; # already in PATH

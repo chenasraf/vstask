@@ -34,7 +34,7 @@ jobs:
         with:
           platforms: 'linux/amd64, darwin/amd64, windows/amd64' # , darwin/arm64' # '
           package: ''
-          name: 'sofmani'
+          name: 'vstask'
           compress: 'true'
           dest: 'dist'
       - name: Upload builds

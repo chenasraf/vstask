@@ -14,7 +14,7 @@ jobs:
   release:
     uses: chenasraf/workflows/.github/workflows/go-release.yml@master
     with:
-      name: sofmani
+      name: vstask
       homebrew-tap-repo: chenasraf/homebrew-tap
     secrets:
       REPO_DISPATCH_PAT: ${{ secrets.REPO_DISPATCH_PAT }}
