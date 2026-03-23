@@ -32,12 +32,29 @@ func main() {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
+		// Exact match first
 		task, found := lo.Find(taskList, func(t tasks.Task) bool {
 			return t.Label == args[0]
 		})
 		if !found {
-			fmt.Println("Error:", "Task not found: "+args[0])
-			os.Exit(1)
+			// Fall back to case-insensitive partial match
+			query := strings.ToLower(args[0])
+			matches := lo.Filter(taskList, func(t tasks.Task, _ int) bool {
+				return strings.Contains(strings.ToLower(t.Label), query)
+			})
+			switch len(matches) {
+			case 0:
+				fmt.Println("Error:", "Task not found: "+args[0])
+				os.Exit(1)
+			case 1:
+				task = matches[0]
+			default:
+				fmt.Println("Error:", "Multiple tasks match '"+args[0]+"':")
+				for _, m := range matches {
+					fmt.Println("  -", m.Label)
+				}
+				os.Exit(1)
+			}
 		}
 		err = runner.RunTask(task)
 		if err != nil {
