@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/chenasraf/vstask/compare/v1.3.0...v1.4.0) (2026-03-23)
+
+
+### Features
+
+* improve task name matching on cli args ([8c57114](https://github.com/chenasraf/vstask/commit/8c57114a4e6f7a2b09d449aff18a8451f8c929a5))
+
 ## [1.3.0](https://github.com/chenasraf/vstask/compare/v1.2.0...v1.3.0) (2026-03-09)
 
 
