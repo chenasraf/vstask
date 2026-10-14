@@ -357,8 +357,8 @@ func mergeEnv(base []string, extra map[string]string) []string {
 	// Convert base to map
 	m := map[string]string{}
 	for _, kv := range base {
-		if i := strings.IndexByte(kv, '='); i >= 0 {
-			m[kv[:i]] = kv[i+1:]
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			m[k] = v
 		}
 	}
 	maps.Copy(m, extra)

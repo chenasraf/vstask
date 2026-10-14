@@ -172,8 +172,8 @@ func TestMergeEnv(t *testing.T) {
 func envToMap(env []string) map[string]string {
 	m := map[string]string{}
 	for _, kv := range env {
-		if i := strings.IndexByte(kv, '='); i >= 0 {
-			m[kv[:i]] = kv[i+1:]
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			m[k] = v
 		}
 	}
 	return m
