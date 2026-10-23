@@ -155,7 +155,7 @@ func startAndWaitReady(ctx context.Context, cmd *execCmdShim, interactive bool, 
 	select {
 	case <-ctx.Done():
 		_ = terminateProcessTree(cmd.Cmd)
-		<-waitErrCh
+		<-waitErrCh //nolint:errcheck // the exit error of a process we just killed carries nothing
 		return ctx.Err()
 	case err := <-waitErrCh:
 		// Process exited before readiness; for a dep this means failure/finish.
