@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/chenasraf/vstask/compare/v1.4.0...v1.4.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** require go 1.26.10 ([ae6e39e](https://github.com/chenasraf/vstask/commit/ae6e39ee80074f9ad4e49d9b508d759d2e168b55))
+* **deps:** require go 1.27.3 ([a6c343a](https://github.com/chenasraf/vstask/commit/a6c343a5a7ab81a5fcd25b8a068e84ae19137b0a))
+
 ## [1.4.0](https://github.com/chenasraf/vstask/compare/v1.3.0...v1.4.0) (2026-03-23)
 
 
