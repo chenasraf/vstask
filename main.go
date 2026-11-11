@@ -17,6 +17,17 @@ var appVersion []byte // appVersion is embedded from version.txt and contains th
 func main() {
 	utils.SetVersion(strings.TrimSpace(string(appVersion)))
 	args := os.Args[1:]
+	useDefaults := false
+	filteredArgs := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--use-defaults" {
+			useDefaults = true
+			continue
+		}
+		filteredArgs = append(filteredArgs, arg)
+	}
+	args = filteredArgs
+
 	if len(args) > 0 {
 		switch args[0] {
 		case "--help", "-h":
@@ -36,7 +47,7 @@ func main() {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		err = runner.RunTask(task)
+		err = runner.RunTaskWithOptions(task, runner.RunTaskOptions{UseDefaults: useDefaults})
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -52,7 +63,7 @@ func main() {
 		fmt.Println("No task selected.")
 		os.Exit(1)
 	}
-	err = runner.RunTask(selected)
+	err = runner.RunTaskWithOptions(selected, runner.RunTaskOptions{UseDefaults: useDefaults})
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

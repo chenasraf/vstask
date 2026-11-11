@@ -51,6 +51,33 @@ func TestSubstituteVarsSimple(t *testing.T) {
 	}
 }
 
+func TestInputResolverUsesDeclaredDefault(t *testing.T) {
+	resolver := newInputResolver([]tasks.Input{
+		{
+			ID:      "choice",
+			Type:    "command",
+			Command: "this command should not run",
+			Default: "safe",
+		},
+	}, true)
+
+	got, err := resolver.Resolve("choice")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if got != "safe" {
+		t.Fatalf("Resolve() = %q, want %q", got, "safe")
+	}
+}
+
+func TestInputResolverUseDefaultsRequiresDeclaredDefault(t *testing.T) {
+	resolver := newInputResolver([]tasks.Input{{ID: "choice", Type: "promptString"}}, true)
+
+	if _, err := resolver.Resolve("choice"); err == nil {
+		t.Fatal("Resolve() expected an error when the input has no declared default")
+	}
+}
+
 func TestCWDResolution_RelativeFromOptions(t *testing.T) {
 	tmp := t.TempDir()
 	workspace := filepath.Join(tmp, "ws")

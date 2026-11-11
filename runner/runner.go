@@ -20,6 +20,15 @@ import (
 
 // RunTask executes a task, resolving its dependsOn (sequence/parallel) and prompting for ${input:*}.
 func RunTask(task tasks.Task) error {
+	return RunTaskWithOptions(task, RunTaskOptions{})
+}
+
+type RunTaskOptions struct {
+	UseDefaults bool
+}
+
+// RunTaskWithOptions executes a task with the specified input resolution options.
+func RunTaskWithOptions(task tasks.Task, options RunTaskOptions) error {
 	// Load all tasks so we can resolve dependsOn by label.
 	all, err := tasks.GetTasks()
 	if err != nil {
@@ -31,8 +40,10 @@ func RunTask(task tasks.Task) error {
 	var inputs []tasks.Input
 	if gi, err := tasks.GetInputs(); err == nil && gi != nil {
 		inputs = gi
+	} else if options.UseDefaults && err != nil {
+		return fmt.Errorf("load task inputs: %w", err)
 	}
-	resolver := NewInputResolver(inputs)
+	resolver := newInputResolver(inputs, options.UseDefaults)
 
 	// Figure out workspace folder for substitutions.
 	root, err := utils.FindProjectRoot()
@@ -171,7 +182,9 @@ func runTaskInternal(t tasks.Task, workspace string, resolver *InputResolver, wa
 	eff := applyPlatformOverrides(t)
 
 	// ---- Prompt for all inputs referenced by this effective task BEFORE doing anything else ----
-	promptInputsForTask(eff, resolver)
+	if err := promptInputsForTask(eff, resolver); err != nil {
+		return err
+	}
 
 	// Prelim vars (process cwd)
 	preVars := buildVSCodeVarMapWithCWD(workspace, mustGetwd())
