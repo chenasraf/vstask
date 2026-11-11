@@ -91,29 +91,38 @@ func applyPlatformOverrides(t tasks.Task) tasks.Task {
 // }
 
 type InputResolver struct {
-	byID  map[string]tasks.Input
-	cache map[string]string
+	byID        map[string]tasks.Input
+	cache       map[string]string
+	useDefaults bool
 }
 
 func NewInputResolver(inputs []tasks.Input) *InputResolver {
+	return newInputResolver(inputs, false)
+}
+
+func newInputResolver(inputs []tasks.Input, useDefaults bool) *InputResolver {
 	m := make(map[string]tasks.Input, len(inputs))
 	for _, in := range inputs {
 		m[in.ID] = in
 	}
 	return &InputResolver{
-		byID:  m,
-		cache: map[string]string{},
+		byID:        m,
+		cache:       map[string]string{},
+		useDefaults: useDefaults,
 	}
 }
 
 var reInput = regexp.MustCompile(`\$\{input:([^}]+)\}`)
 
 // promptInputsForTask scans the effective task for ${input:*} and resolves all before running.
-func promptInputsForTask(t tasks.Task, r *InputResolver) {
+func promptInputsForTask(t tasks.Task, r *InputResolver) error {
 	ids := collectInputRefsFromTask(t)
 	for _, id := range ids {
-		_, _ = r.Resolve(id) // cache it
+		if _, err := r.Resolve(id); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func collectInputRefsFromTask(t tasks.Task) []string {
@@ -173,6 +182,9 @@ func (r *InputResolver) Resolve(id string) (string, error) {
 
 	in, ok := r.byID[id]
 	if !ok {
+		if r.useDefaults {
+			return "", fmt.Errorf("input %q has no declared default", id)
+		}
 		// Unknown input: fallback to simple line prompt.
 		val, err := simpleLinePrompt(fmt.Sprintf("Enter value for %s", id), "")
 		if err != nil {
@@ -180,6 +192,14 @@ func (r *InputResolver) Resolve(id string) (string, error) {
 		}
 		r.cache[id] = val
 		return val, nil
+	}
+
+	if r.useDefaults {
+		if in.Default == "" {
+			return "", fmt.Errorf("input %q has no declared default", id)
+		}
+		r.cache[id] = in.Default
+		return in.Default, nil
 	}
 
 	switch strings.ToLower(in.Type) {

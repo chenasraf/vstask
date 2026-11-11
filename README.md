@@ -118,6 +118,9 @@ vstask
 
 # run one by label
 vstask my-command
+
+# run using the declared defaults for all task inputs
+vstask --use-defaults my-command
 ```
 
 ---

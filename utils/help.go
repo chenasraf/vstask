@@ -5,9 +5,10 @@ import (
 )
 
 func PrintHelp() {
-	fmt.Println("Usage: vstask [task-name]")
+	fmt.Println("Usage: vstask [--use-defaults] [task-name]")
 	fmt.Println("Options:")
 	fmt.Println("  -h, --help         Show this help message")
+	fmt.Println("      --use-defaults Use declared defaults for task inputs")
 }
 
 func PrintVersion() {
